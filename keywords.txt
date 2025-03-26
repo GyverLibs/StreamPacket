@@ -1,0 +1,23 @@
+#######################################
+# Syntax Coloring Map For StreamPacket
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+StreamPacket	KEYWORD1
+Sender	KEYWORD1
+Reader	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+#StreamPacket	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+#StreamPacket	LITERAL1
