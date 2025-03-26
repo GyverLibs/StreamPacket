@@ -14,10 +14,7 @@ Reader	KEYWORD1
 # Methods and Functions (KEYWORD2)
 #######################################
 
-#StreamPacket	KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
 #######################################
-
-#StreamPacket	LITERAL1
