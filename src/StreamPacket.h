@@ -18,7 +18,7 @@ class StreamPacket {
     // chunked отправщик
     class Sender {
        public:
-        Sender(Stream& s) : _s(s) {}
+        Sender(Print& s) : _s(s) {}
 
         // начать пакет
         template <typename Tp>
@@ -44,7 +44,7 @@ class StreamPacket {
         }
 
        private:
-        Stream& _s;
+       Print& _s;
         uint8_t _crc = 0;
     };
 
@@ -117,13 +117,13 @@ class StreamPacket {
 
     // отправить данные
     template <typename Tp, typename Td>
-    static bool send(Stream& s, Tp type, const Td& data) {
+    static bool send(Print& s, Tp type, const Td& data) {
         return send(s, type, &data, sizeof(Td));
     }
 
     // отправить данные
     template <typename Tp>
-    static bool send(Stream& s, Tp type, const void* data, size_t len) {
+    static bool send(Print& s, Tp type, const void* data, size_t len) {
         return _beginSend(s, type, len) &&
                s.write((uint8_t*)data, len) == len &&
                s.write(_crc8(data, len)) == 1;
@@ -186,7 +186,7 @@ class StreamPacket {
 
     // начать отправку
     template <typename Tp>
-    static bool _beginSend(Stream& s, Tp type, size_t len) {
+    static bool _beginSend(Print& s, Tp type, size_t len) {
         Packet p{len, (uint8_t)type};
         p.crc = _crc8(&p, sizeof(p) - 1);
         return s.write((uint8_t)SP_START) == 1 && s.write((uint8_t*)&p, sizeof(p)) == sizeof(p);
