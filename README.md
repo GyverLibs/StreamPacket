@@ -106,11 +106,25 @@ bool endPacket();
 ```
 
 ### StreamPacket::Reader
-Асинхронный парсер
+Асинхронный парсер, работает на буфере Stream (пакеты до 64 байт AVR, 128 байт ESP)
 
 ```cpp
 // коллбэк вида f(uint8_t type, void* data, size_t len)
 Reader(Stream& s, ParseCallback cb = nullptr);
+
+// коллбэк вида f(uint8_t type, void* data, size_t len)
+void onData(ParseCallback cb);
+
+// тикер, вызывать в loop
+void tick();
+```
+
+### StreamPacket::ReaderBuf
+Асинхронный парсер со своим буфером на любой размер
+
+```cpp
+// коллбэк вида f(uint8_t type, void* data, size_t len)
+ReaderBuf(Stream& s, ParseCallback cb = nullptr);
 
 // коллбэк вида f(uint8_t type, void* data, size_t len)
 void onData(ParseCallback cb);
