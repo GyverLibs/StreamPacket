@@ -1,249 +1,257 @@
-This is an automatic translation, may be incorrect in some places. See sources and examples!
+This is an automatic translation and may be incorrect in some places. See the source README and examples for authoritative information.
 
-# Streampacket
-A simple universal data transfer protocol through Arduino Stream (Serial, Wire, etc.
-- Control of integrity
-- 256 types of packages
+[![latest](https://img.shields.io/github/v/release/GyverLibs/StreamPacket.svg?color=brightgreen)](https://github.com/GyverLibs/StreamPacket/releases/latest/download/StreamPacket.zip)
+[![PIO](https://badges.registry.platformio.org/packages/gyverlibs/library/StreamPacket.svg)](https://registry.platformio.org/libraries/gyverlibs/StreamPacket)
+[![Foo](https://img.shields.io/badge/Website-AlexGyver.ru-blue.svg?style=flat-square)](https://alexgyver.ru/)
+[![Foo](https://img.shields.io/badge/%E2%82%BD%24%E2%82%AC%20%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-%D0%B0%D0%B2%D1%82%D0%BE%D1%80%D0%B0-orange.svg?style=flat-square)](https://alexgyver.ru/support_alex/)
+[![Foo](https://img.shields.io/badge/README-ENGLISH-blueviolet.svg?style=flat-square)](https://github-com.translate.goog/GyverLibs/StreamPacket?_x_tr_sl=ru&_x_tr_tl=en)  
+
+[![Foo](https://img.shields.io/badge/ПОДПИСАТЬСЯ-НА%20ОБНОВЛЕНИЯ-brightgreen.svg?style=social&logo=telegram&color=blue)](https://t.me/GyverLibs)
+
+# StreamPacket
+Simple universal protocol for data transmission via Arduino Stream (Serial, Wire, etc.)
+- Integrity control
+- 256 package types
 - Asynchronous reception
-- Oppressing Chunked Sending
+- Possibility of chunked sending
 
-## compatibility
-Compatible with all arduino platforms (used arduino functions)
+### Compatibility
+Compatible with all Arduino platforms (Arduino features are used)
 
-## Content
-- [use] (#usage)
-- [versions] (#varsions)
-- [installation] (# Install)
-- [bugs and feedback] (#fedback)
+## Contents
+- [Use of use](#usage)
+- [Versions](#versions)
+- [Installation](#install)
+- [Bugs and feedback](#feedback)
 
-<a id = "USAGE"> </A>
+<a id="usage"></a>
 
-## Usage
-The library is intended for effective sending and reading packages on Arduino Stream.When sending, the package is assigned the type of package - the number 8 bits.With parsing, this number will be available in order to cast data into the desired type.For example, send 32 bits the number, type of package 1 and a piece of string, type of package 2:
+## Use of use
+The library is designed to efficiently send and read packets over the Arduino Stream. When a packet is sent, the packet type is assigned the number 8 bits. When parsing, this number will be available in order to cast the data into the desired expected type. For example, send 32 bit number, packet type 1 and string piece, packet type 2:
 
-`` `CPP
+```cpp
 uint32_t val = 12345;
-Streampacket :: Send (Serial, 1, Val);// Type of package 1 (auto -determination of length)
+StreamPacket::send(Serial, 1, val);     // Packet type 1 (length autodetermination)
 
-Chard [] = "Hello";
-Streampacket :: Send (Serial, 2, Str, 5);// Type of package 2, length 5 (without a zero symbol)
-`` `
+char str[] = "hello";
+StreamPacket::send(Serial, 2, str, 5);  // Packet type 2, length 5 (without null symbol)
+```
 
 The library will compose and send a package, it has the following structure:
 
-- Title
-- Starting byte
-- length (2 bytes)
-- Type (1 byte)
-- CRC (1 byte)
-- Data
-- Data
-- CRC (1 byte)
+- Title:
+  - Starting byte
+  - Length (2 bytes)
+  - Type (1 byte)
+  - CRC (1 byte)
+- Data data
+  - Data data
+  - CRC (1 byte)
 
-During parsing, the library will check the correctness of the data and send them to the handler.In it you can disassemble the data based on the type of package, and cast it in the desired type.The library also sends the length of the package, which allows you to accept dynamic data:
+When parsing, the library will check the correctness of the data and send it to the processor. In it, you can disassemble data based on the type of packet, and cast them into the desired type. The library also sends packet length, which allows you to receive dynamic data:
 
-`` `CPP
-VOID loop () {
-Streampacket :: Parse (serial, [] (uint8_t type, void* data, size_t len) {
-switch (type) {
-Case 1:
-// Type 1 - 32 bit the whole
-Serial.println ("type 1");
-Serial.println (*((uint32_t*) data));
-Break;
-
-Case 2:
-// Type 2 - line (LEN lengths)
-Serial.println ("type 2");
-Serial.write ((char*) Data, Len);
-Serial.println ();
-Break;
+```cpp
+void loop() {
+    StreamPacket::parse(Serial, [](uint8_t type, void* data, size_t len){
+        switch (type) {
+            case 1:
+                // type 1 - 32 bits whole
+                Serial.println("type 1");
+                Serial.println(*((uint32_t*)data));
+                break;
+            
+            case 2:
+                // Type 2 - string (lengths len)
+                Serial.println("type 2");
+                Serial.write((char*)data, len);
+                Serial.println();
+                break;
+        }
+    });
 }
-});
-}
-`` `
+```
 
-It is most convenient to use to transfer the structure - see examples below.
+It is most convenient to use to transfer the structure - see the examples below.
 
-## description of classes
-### Streampacket
-Synchronous sending and reception
+## Description of classes
+### StreamPacket
+Synchronous sending and receiving
 
-`` `CPP
-// Send data
-Bool Streampacket :: Send (Stream & S, Tp Type, Consta TD & DATA);
+```cpp
+// send out
+bool StreamPacket::send(Stream& s, Tp type, const Td& data);
 
-// Send data
-Bool Streampacket :: Send (Stream & S, Tp Type, Consta Void* Data, Size_t Len);
+// send out
+bool StreamPacket::send(Stream& s, Tp type, const void* data, size_t len);
 
-// Parish the data, collbe of the type f (uint8_t type, void* data, size_t len)
-VOID Streampacket :: Parse (Stream & S, Parsecallback CB);
-`` `
+// Collaboration of f(uint8 t type, void* data, size t len)
+void StreamPacket::parse(Stream& s, ParseCallback cb);
+```
 
-### Streampacket :: Sender
-Chunked SPIRITER
+### StreamPacket::Sender
+Chunked shipper
 
-`` `CPP
-Sender (Stream & S);
+```cpp
+Sender(Stream& s);
 
-// Start a package
-Bool BeginPacket (TP Type, Size_t Len);
+// packet
+bool beginPacket(Tp type, size_t len);
 
-// Send a chambers
-Bool Send (Consta TD & DATA);
+// chunk
+bool send(const Td& data);
 
-// Send a chambers
-Bool Send (Consta* Data, Size_t Len);
+// chunk
+bool send(const void* data, size_t len);
 
-// Complete sending
-Bool Endpacket ();
-`` `
+// complete
+bool endPacket();
+```
 
-## streampacket :: Reader
-Asynchronous Parser, works on the Stream buffer (packages up to 64 bytes AVR, 128 bytes ESP)
+### StreamPacket::Reader
+Asynchronous parser, running on the Stream buffer (packages up to 64 bytes AVR, 128 bytes ESP)
 
-`` `CPP
-// Collback type F (uint8_t Type, VOID* DATA, SIZE_T LEN)
-Reader (Stream & S, Parsecallback CB = NULLPTR);
+```cpp
+// callback type f(uint8 t type, void* data, size t len)
+Reader(Stream& s, ParseCallback cb = nullptr);
 
-// Collback type F (uint8_t Type, VOID* DATA, SIZE_T LEN)
-VOID ONDATA (PARSECALLBACK CB);
+// callback type f(uint8 t type, void* data, size t len)
+void onData(ParseCallback cb);
 
-// ticker, call in loop
-VOID Tick ();
-`` `
+// ticker
+void tick();
+```
 
-## streampacket :: Readerbuf
-Asynchronous Parser with his buffer to any size
+### StreamPacket::ReaderBuf
+Asynchronous parser with its buffer for any size
 
-`` `CPP
-// Collback type F (uint8_t Type, VOID* DATA, SIZE_T LEN)
-Readerbuf (Stream & S, Parsecallback CB = NULLPTR);
+```cpp
+// callback type f(uint8 t type, void* data, size t len)
+ReaderBuf(Stream& s, ParseCallback cb = nullptr);
 
-// Collback type F (uint8_t Type, VOID* DATA, SIZE_T LEN)
-VOID ONDATA (PARSECALLBACK CB);
+// callback type f(uint8 t type, void* data, size t len)
+void onData(ParseCallback cb);
 
-// ticker, call in loop
-VOID Tick ();
-`` `
+// ticker
+void tick();
+```
 
 ## Examples
-### Sending
-`` `CPP
-Struct S {
-int a;
-Float b;
-Char str [5];
+### Sending.
+```cpp
+struct S {
+    int a;
+    float b;
+    char str[5];
 };
 
-S s {123, 3.14, "abcd"};
-Streampacket :: Send (Serial, 1, S);// Type of package 1
-`` `
+S s{123, 3.14, "abcd"};
+StreamPacket::send(Serial, 1, s);   // packet-type
+```
 
-`` `CPP
-Chard [] = "Hello";
-Streampacket :: Send (Serial, 2, Str, 5);// Type of package 2, length 5
-`` `
+```cpp
+char str[] = "hello";
+StreamPacket::send(Serial, 2, str, 5);  // package type 2, length 5
+```
 
-### Chunked Sending
-`` `CPP
-Streampacket :: Sender S (Serial);
-S.Beginpacket (3, 17);// Type of package 3, length 17 bytes
-S.Send ("HELLO", 6);
-S.Send ("World", 6);
-S.Send ("12345", 5);
-S.endpacket ();
-`` `
+### Chunked shipping
+```cpp
+StreamPacket::Sender s(Serial);
+s.beginPacket(3, 17);   // Packet type 3, length 17 bytes
+s.send("hello ", 6);
+s.send("world ", 6);
+s.send("12345", 5);
+s.endPacket();
+```
 
-### Reception
-`` `CPP
-VOID loop () {
-Streampacket :: Parse (serial, [] (uint8_t type, void* data, size_t len) {
-switch (type) {
-Case 1:
-Serial.println ("type 1");
-Serial.write ((char*) Data, Len);
-Break;
+### Reception.
+```cpp
+void loop() {
+    StreamPacket::parse(Serial, [](uint8_t type, void* data, size_t len){
+        switch (type) {
+            case 1:
+                Serial.println("type 1");
+                Serial.write((char*)data, len);
+                break;
+            
+            case 2:
+                Serial.println("type 2");
+                Serial.write((char*)data, len);
+                break;
 
-Case 2:
-Serial.println ("type 2");
-Serial.write ((char*) Data, Len);
-Break;
-
-Case 3: {
-Serial.println ("type 3");
-S & s = *((s *) data);
-Serial.println (S.A);
-Serial.println (S.B);
-Serial.println (S.str);
-} Break;
+            case 3: {
+                Serial.println("type 3");
+                S& s = *((S*)data);
+                Serial.println(s.a);
+                Serial.println(s.b);
+                Serial.println(s.str);
+            } break;
+        }
+        Serial.println();
+    });
 }
-Serial.println ();
+```
+```cpp
+StreamPacket::Reader p(Serial, [](uint8_t type, void* data, size_t len){
+    switch (type) {
+        case 1:
+            Serial.println("type 1");
+            Serial.write((char*)data, len);
+            break;
+        
+        case 2:
+            Serial.println("type 2");
+            Serial.write((char*)data, len);
+            break;
+
+        case 3: {
+            Serial.println("type 3");
+            S& s = *((S*)data);
+            Serial.println(s.a);
+            Serial.println(s.b);
+            Serial.println(s.str);
+        } break;
+    }
+    Serial.println();
 });
+
+void loop() {
+    p.tick();
 }
-`` `
-`` `CPP
-Streampacket :: Reader p (serial, [] (uint8_t type, void* data, size_t len) {
-switch (type) {
-Case 1:
-Serial.println ("type 1");
-Serial.write ((char*) Data, Len);
-Break;
+```
 
-Case 2:
-Serial.println ("type 2");
-Serial.write ((char*) Data, Len);
-Break;
+<a id="versions"></a>
 
-Case 3: {
-Serial.println ("type 3");
-S & s = *((s *) data);
-Serial.println (S.A);
-Serial.println (S.B);
-Serial.println (S.str);
-} Break;
-}
-Serial.println ();
-});
+## Versions
+- v1.0
 
-VOID loop () {
-P.Tick ();
-}
-`` `
-
-<a ID = "Versions"> </a>
-
-## versions
-- V1.0
-
-<a id = "Install"> </a>
+<a id="install"></a>
 ## Installation
-- The library can be found by the name ** Streampacket ** and installed through the library manager in:
-- Arduino ide
-- Arduino ide v2
-- Platformio
-- [download the library] (https://github.com/gyverlibs/streampacket/archive/refs/heads/main.zip) .Zip archive for manual installation:
-- unpack and put in * C: \ Program Files (X86) \ Arduino \ Libraries * (Windows X64)
-- unpack and put in * C: \ Program Files \ Arduino \ Libraries * (Windows X32)
-- unpack and put in *documents/arduino/libraries/ *
-- (Arduino id) Automatic installation from. Zip: * sketch/connect the library/add .Zip library ... * and specify downloaded archive
-- Read more detailed instructions for installing libraries[here] (https://alexgyver.ru/arduino-first/#%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0_%D0%B1%D0%B8%D0%B1%D0%B8%D0%BE%D1%82%D0%B5%D0%BA)
+- The library can be found under the name **StreamPacket** and installed through the library manager in:
+    - Arduino IDE
+    - Arduino IDE v2
+    - PlatformIO
+- [Download the library](https://github.com/GyverLibs/StreamPacket/archive/refs/heads/main.zip).zip archive for manual installation:
+    - Unpack and put in *C:\Program Files (x86)\Arduino\libraries* (Windows x64)
+    - Unpack and put in *C:\Program Files\Arduino\libraries* (Windows x32)
+    - Unpack and put in *Documents/Arduino/libraries/ *
+    - (Arduino IDE) Automatic installation from .zip: *Sketch/Connect library/Add .ZIP library...* and specify downloaded archive
+- Read more detailed instructions for installing libraries[here](https://alexgyver.ru/arduino-first/#%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0_%D0%B1%D0%B8%D0%B1%D0%BB%D0%B8%D0%BE%D1%82%D0%B5%D0%BA)
 ### Update
-- I recommend always updating the library: errors and bugs are corrected in the new versions, as well as optimization and new features are added
-- through the IDE library manager: find the library how to install and click "update"
-- Manually: ** remove the folder with the old version **, and then put a new one in its place.“Replacement” cannot be done: sometimes in new versions, files that remain when replacing are deleted and can lead to errors!
+- I recommend always updating the library: new versions fix errors and bugs, as well as optimize and add new features.
+- Through the library manager IDE: find the library as when installing and click "Update"
+- Manually: **Delete the folder with the old version** and then put the new one in its place. “Replacement” can not be done: sometimes new versions delete files that will remain when replaced and can lead to errors!
 
-<a id = "Feedback"> </a>
+<a id="feedback"></a>
 
-## bugs and feedback
-Create ** Issue ** when you find the bugs, and better immediately write to the mail [alex@alexgyver.ru] (mailto: alex@alexgyver.ru)
-The library is open for refinement and your ** pull Request ** 'ow!
+## Bugs and feedback
+If you find bugs, create **Issue**, or better write to the mail immediately.[alex@alexgyver.ru](mailto:alex@alexgyver.ru)  
+The library is open for revision and your **Pull Requests*!
 
-When reporting about bugs or incorrect work of the library, it is necessary to indicate:
-- The version of the library
-- What is MK used
+When reporting bugs or incorrect work of the library, it is necessary to specify:
+- Library version
+- What is used by the IC
 - SDK version (for ESP)
-- version of Arduino ide
-- whether the built -in prImers that use the functions and designs leading to a bug in your code
-- what code has been loaded, what work was expected from it and how it works in reality
-- Ideally, attach the minimum code in which the bug is observed.Not a canvas of a thousand lines, but a minimum code
+- Arduino IDE version
+- Are embedded examples that use features and designs that cause bugs in your code working correctly?
+- What code was downloaded, what work was expected from it and how it works in reality
+- Ideally, attach the minimum code in which the bug is observed. Not a canvas of a thousand lines, but a minimum code.
