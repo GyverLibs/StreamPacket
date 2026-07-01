@@ -1,7 +1,19 @@
+#pragma once
 #include <Arduino.h>
 
+#ifndef SP_START
 #define SP_START '$'
+#endif
+#ifndef SP_TOUT
 #define SP_TOUT 10
+#endif
+#ifndef SP_READER_SIZE
+#ifdef __AVR__
+#define SP_READER_SIZE 64
+#else
+#define SP_READER_SIZE 128
+#endif
+#endif
 
 class StreamPacket {
     typedef void (*ParseCallback)(uint8_t type, void* data, size_t len);
@@ -29,7 +41,7 @@ class StreamPacket {
     template <typename Tp>
     static bool send(Print& s, Tp type, const void* data, size_t len) {
         return _beginSend(s, (uint8_t)type, len) &&
-               s.write((uint8_t*)data, len) == len &&
+               s.write((const uint8_t*)data, len) == len &&
                s.write(_crc8(data, len)) == 1;
     }
 
@@ -37,16 +49,16 @@ class StreamPacket {
     static void parse(Stream& s, ParseCallback cb) {
         Packet p;
 
-        if ((size_t)s.available() < sizeof(p) + 2 ||
+        if ((size_t)s.available() < _HEADER_SIZE + 2 ||
             s.read() != SP_START ||
-            s.readBytes((uint8_t*)&p, sizeof(p)) != sizeof(p) ||
-            _crc8(&p, sizeof(p))) return;
+            !_readHeader(s, p) ||
+            p.length == UINT16_MAX) return;
 
-        uint16_t len = p.length + 1;
+        size_t len = (size_t)p.length + 1;
         uint8_t* data = new uint8_t[len];
         if (!data) return;
 
-        if (s.readBytes(data, len) == len && !_crc8(data, len)) {
+        if (s.readBytes(data, len) == len && !_crc8(data, len) && cb) {
             cb(p.type, data, p.length);
         }
 
@@ -55,6 +67,8 @@ class StreamPacket {
 
     // ================= PRIVATE =================
    private:
+    static const uint8_t _HEADER_SIZE = 4;
+
     static uint8_t _crc8(const void* data, size_t len, uint8_t crc = 0) {
         const uint8_t* p = (const uint8_t*)data;
 #ifdef __AVR__
@@ -90,9 +104,28 @@ class StreamPacket {
 
     // начать отправку
     static bool _beginSend(Print& s, uint8_t type, size_t len) {
-        Packet p{len, type};
-        p.crc = _crc8(&p, sizeof(p) - 1);
-        return s.write((uint8_t)SP_START) == 1 && s.write((uint8_t*)&p, sizeof(p)) == sizeof(p);
+        if (len >= UINT16_MAX) return false;
+
+        uint8_t header[_HEADER_SIZE] = {
+            (uint8_t)len,
+            (uint8_t)(len >> 8),
+            type,
+            0,
+        };
+        header[3] = _crc8(header, 3);
+        return s.write((uint8_t)SP_START) == 1 &&
+               s.write(header, sizeof(header)) == sizeof(header);
+    }
+
+    static bool _readHeader(Stream& s, Packet& p) {
+        uint8_t header[_HEADER_SIZE];
+        if (s.readBytes(header, sizeof(header)) != sizeof(header) ||
+            _crc8(header, sizeof(header))) return false;
+
+        p.length = (uint16_t)header[0] | ((uint16_t)header[1] << 8);
+        p.type = header[2];
+        p.crc = header[3];
+        return true;
     }
 };
 
@@ -106,7 +139,11 @@ class StreamPacket::Sender {
     // начать пакет
     template <typename Tp>
     bool beginPacket(Tp type, size_t len) {
-        return StreamPacket::_beginSend(_s, (uint8_t)type, len);
+        if (_active) return false;
+        _crc = 0;
+        _left = len;
+        _active = StreamPacket::_beginSend(_s, (uint8_t)type, len);
+        return _active;
     }
 
     // отправить чанк
@@ -117,18 +154,30 @@ class StreamPacket::Sender {
 
     // отправить чанк
     bool send(const void* data, size_t len) {
-        _crc = StreamPacket::_crc8(data, len, _crc);
-        return _s.write((uint8_t*)data, len) == len;
+        if (!_active || len > _left) return false;
+
+        size_t written = _s.write((const uint8_t*)data, len);
+        _crc = StreamPacket::_crc8(data, written, _crc);
+        _left -= written;
+        if (written != len) _ok = false;
+        return written == len;
     }
 
     // завершить отправку
     bool endPacket() {
-        return _s.write(_crc);
+        bool valid = _active && _ok && !_left;
+        bool sent = valid && _s.write(_crc) == 1;
+        _active = false;
+        _ok = true;
+        return sent;
     }
 
    private:
     Print& _s;
     uint8_t _crc = 0;
+    size_t _left = 0;
+    bool _active = false;
+    bool _ok = true;
 };
 
 // ================= READER BUF =================
@@ -137,6 +186,12 @@ class StreamPacket::Sender {
 class StreamPacket::ReaderBuf {
    public:
     ReaderBuf(Stream& s, ParseCallback cb = nullptr) : _s(s), _cb(cb) {}
+    ~ReaderBuf() {
+        delete[] _data;
+    }
+
+    ReaderBuf(const ReaderBuf&) = delete;
+    ReaderBuf& operator=(const ReaderBuf&) = delete;
 
     // коллбэк вида f(uint8_t type, void* data, size_t len)
     void onData(ParseCallback cb) {
@@ -148,37 +203,35 @@ class StreamPacket::ReaderBuf {
         if (_data) {
             if (_s.available()) {
                 _tmr = millis();
-                size_t rlen = min(int(_p.length + 1 - _idx), _s.available());
+                size_t left = (size_t)_p.length + 1 - _idx;
+                size_t rlen = min(left, (size_t)_s.available());
 
                 if (_s.readBytes(_data + _idx, rlen) != rlen) {
-                    delete _data;
-                    _data = nullptr;
+                    _reset();
                     return;
                 }
 
                 _p.crc = _crc8(_data + _idx, rlen, _p.crc);
                 _idx += rlen;
 
-                if (_idx == _p.length + 1) {
+                if (_idx == (size_t)_p.length + 1) {
                     if (!_p.crc && _cb) _cb(_p.type, _data, _p.length);
-                    delete _data;
-                    _data = nullptr;
+                    _reset();
                 }
 
             } else {
                 if (millis() - _tmr >= SP_TOUT) {
-                    delete _data;
-                    _data = nullptr;
+                    _reset();
                 }
             }
 
         } else {
-            if ((size_t)_s.available() < sizeof(_p) + 1 ||
+            if ((size_t)_s.available() < _HEADER_SIZE + 1 ||
                 _s.read() != SP_START ||
-                _s.readBytes((uint8_t*)&_p, sizeof(_p)) != sizeof(_p) ||
-                _crc8(&_p, sizeof(_p))) return;
+                !_readHeader(_s, _p) ||
+                _p.length == UINT16_MAX) return;
 
-            _data = new uint8_t[_p.length + 1];
+            _data = new uint8_t[(size_t)_p.length + 1];
             if (!_data) return;
 
             _idx = 0;
@@ -188,12 +241,17 @@ class StreamPacket::ReaderBuf {
     }
 
    private:
+    void _reset() {
+        delete[] _data;
+        _data = nullptr;
+    }
+
     Stream& _s;
     uint8_t* _data = nullptr;
     ParseCallback _cb = nullptr;
     Packet _p;
     uint32_t _tmr = 0;
-    uint16_t _idx = 0;
+    size_t _idx = 0;
 };
 
 // ================= READER =================
@@ -210,28 +268,28 @@ class StreamPacket::Reader {
 
     // тикер, вызывать в loop
     void tick() {
-        if (_p.length) {
+        if (_reading) {
             if ((uint16_t)_s.available() >= _p.length) {
-                uint8_t buf[_p.length];
+                uint8_t buf[SP_READER_SIZE + 1];
                 if (_s.readBytes(buf, _p.length) == _p.length && _cb && !_crc8(buf, _p.length)) {
                     _cb(_p.type, buf, _p.length - 1);
                 }
-                _p.length = 0;
+                _reading = false;
             } else if (_pAv != (uint16_t)_s.available()) {
                 _pAv = _s.available();
                 _tmr = millis();
             } else if (uint16_t(uint16_t(millis()) - _tmr) >= SP_TOUT) {
-                _p.length = 0;
+                _reading = false;
             }
         } else {
-            if ((size_t)_s.available() < sizeof(_p) + 1 ||
+            if ((size_t)_s.available() < _HEADER_SIZE + 1 ||
                 _s.read() != SP_START ||
-                _s.readBytes((uint8_t*)&_p, sizeof(_p)) != sizeof(_p) ||
-                _crc8(&_p, sizeof(_p))) {
-                _p.length = 0;
+                !_readHeader(_s, _p) ||
+                _p.length > SP_READER_SIZE) {
                 return;
             }
             ++_p.length;
+            _reading = true;
             _tmr = millis();
             _pAv = 0;
         }
@@ -243,4 +301,5 @@ class StreamPacket::Reader {
     Packet _p;
     uint16_t _pAv = 0;
     uint16_t _tmr = 0;
+    bool _reading = false;
 };

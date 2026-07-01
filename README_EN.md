@@ -79,10 +79,10 @@ Synchronous sending and receiving
 
 ```cpp
 // send out
-bool StreamPacket::send(Stream& s, Tp type, const Td& data);
+bool StreamPacket::send(Print& s, Tp type, const Td& data);
 
 // send out
-bool StreamPacket::send(Stream& s, Tp type, const void* data, size_t len);
+bool StreamPacket::send(Print& s, Tp type, const void* data, size_t len);
 
 // Collaboration of f(uint8 t type, void* data, size t len)
 void StreamPacket::parse(Stream& s, ParseCallback cb);
@@ -92,7 +92,7 @@ void StreamPacket::parse(Stream& s, ParseCallback cb);
 Chunked shipper
 
 ```cpp
-Sender(Stream& s);
+Sender(Print& s);
 
 // packet
 bool beginPacket(Tp type, size_t len);
@@ -107,8 +107,13 @@ bool send(const void* data, size_t len);
 bool endPacket();
 ```
 
+The maximum packet data length is 65534 bytes. `Sender` checks that exactly the
+declared number of bytes is sent between `beginPacket()` and `endPacket()`.
+
 ### StreamPacket::Reader
-Asynchronous parser, running on the Stream buffer (packages up to 64 bytes AVR, 128 bytes ESP)
+Asynchronous parser operating on the Stream buffer. The default maximum data
+length is 64 bytes on AVR and 128 bytes on other platforms. The limit can be
+changed with `SP_READER_SIZE`.
 
 ```cpp
 // callback type f(uint8 t type, void* data, size t len)
@@ -122,7 +127,7 @@ void tick();
 ```
 
 ### StreamPacket::ReaderBuf
-Asynchronous parser with its buffer for any size
+Asynchronous parser with a dynamic buffer for packets up to 65534 bytes
 
 ```cpp
 // callback type f(uint8 t type, void* data, size t len)

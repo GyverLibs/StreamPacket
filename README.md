@@ -77,10 +77,10 @@ void loop() {
 
 ```cpp
 // отправить данные
-bool StreamPacket::send(Stream& s, Tp type, const Td& data);
+bool StreamPacket::send(Print& s, Tp type, const Td& data);
 
 // отправить данные
-bool StreamPacket::send(Stream& s, Tp type, const void* data, size_t len);
+bool StreamPacket::send(Print& s, Tp type, const void* data, size_t len);
 
 // парсить данные, коллбэк вида f(uint8_t type, void* data, size_t len)
 void StreamPacket::parse(Stream& s, ParseCallback cb);
@@ -90,7 +90,7 @@ void StreamPacket::parse(Stream& s, ParseCallback cb);
 Chunked отправщик
 
 ```cpp
-Sender(Stream& s);
+Sender(Print& s);
 
 // начать пакет
 bool beginPacket(Tp type, size_t len);
@@ -105,8 +105,13 @@ bool send(const void* data, size_t len);
 bool endPacket();
 ```
 
+Максимальная длина данных пакета - 65534 байта. `Sender` проверяет, что между
+`beginPacket()` и `endPacket()` отправлено ровно указанное количество байт.
+
 ### StreamPacket::Reader
-Асинхронный парсер, работает на буфере Stream (пакеты до 64 байт AVR, 128 байт ESP)
+Асинхронный парсер, работает на буфере Stream. Максимальная длина данных по
+умолчанию - 64 байта на AVR и 128 байт на остальных платформах. Лимит можно
+изменить макросом `SP_READER_SIZE`.
 
 ```cpp
 // коллбэк вида f(uint8_t type, void* data, size_t len)
@@ -120,7 +125,7 @@ void tick();
 ```
 
 ### StreamPacket::ReaderBuf
-Асинхронный парсер со своим буфером на любой размер
+Асинхронный парсер с динамическим буфером для пакетов до 65534 байт
 
 ```cpp
 // коллбэк вида f(uint8_t type, void* data, size_t len)
